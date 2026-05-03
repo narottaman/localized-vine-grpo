@@ -1,22 +1,131 @@
-# Localized GRPO — MS Thesis Implementation
+# Localized GRPO — Master's Thesis Implementation
 
-**Localized GRPO: Critic-Free Step-Level Credit Assignment for Structured Reasoning in Small Language Models**
+**Localized GRPO: State-Wise Group-Relative Optimization for Multi-Step LLM Long Reasoning Chains**
 
-*Narutto Gangadhara | Arizona State University | Advisor: Prof. Chitta Baral*
+Narottaman Gangadaran  
+Arizona State University  
+Advisor: Prof. Chitta Baral  
 
 ---
 
 ## Overview
 
-This repository contains the full implementation of all RL post-training methods
-evaluated in the thesis, including our proposed **Localized GRPO** algorithm.
+This repository contains the full implementation of reinforcement learning post-training methods for improving **long-chain reasoning in Large Language Models (LLMs)**.
+
+We introduce **Localized GRPO**, a critic-free method that performs **step-wise credit assignment** using Monte Carlo rollouts from intermediate reasoning states.
 
 ---
 
-## Key Results (Puzzle Baron Logic Grid Puzzles — Qwen2.5-3B-Instruct)
+## Problem Statement: Structured Reasoning with Puzzle Baron
+
+We evaluate models on **Puzzle Baron logic grid puzzles**, which require:
+
+- Multi-step logical deduction
+- Constraint propagation across entities
+- Consistent reasoning across multiple steps
+
+### Example Puzzle Structure
+
+Each puzzle consists of:
+- Entities (people, objects, attributes)
+- Clues (constraints)
+- A grid that must be filled consistently
+
+### Why This Is Hard
+
+- Requires **long reasoning chains**
+- Early mistakes propagate forward
+- Final reward alone does not explain *where reasoning failed*
+
+---
+
+### Example Puzzle Visualization
+
+![Puzzle Baron Example](assets/figures/puzzle_example.png)
+
+---
+
+## Why Credit Assignment Matters
+
+In long reasoning tasks:
+
+- The **final answer is sparse feedback**
+- Many intermediate steps influence correctness
+- Standard RL signals cannot identify:
+  - which step helped
+  - which step hurt
+
+This leads to:
+- high variance learning
+- unstable training
+- poor reasoning generalization
+
+---
+
+## Architecture Comparison
+
+### Training Paradigms Overview
+
+![Architecture Comparison](assets/figures/architecture_comparison.png)
+
+---
+
+### Method Comparison
+
+| Method | Credit Assignment | Strength | Limitation |
+|---|---|---|---|
+| **PPO** | Token-level via critic | Stable optimization | Critic becomes inaccurate for long chains |
+| **GRPO** | Sequence-level relative reward | No critic needed | No step-level feedback |
+| **GDPO** | Structured normalization | Better stability | Still coarse credit assignment |
+| **REINFORCE++** | Sampled returns + normalization | Simple | High variance |
+| **VinePPO** | Rollouts from intermediate states | Partial step awareness | Limited normalization across steps |
+| **Localized GRPO (Ours)** | Step-wise + global normalization | Precise credit assignment | Higher compute cost |
+
+---
+
+## Core Idea: Localized GRPO
+
+![Localized GRPO Pipeline](assets/figures/localized_grpo_pipeline.png)
+
+---
+
+### Algorithm Intuition
+
+For each reasoning step:
+
+1. Sample **K rollouts from intermediate state**
+2. Compute reward for each rollout
+3. Apply KL penalty:
+```
+
+A_tk = v_tk - β * KL_tk
+
+````
+4. Pool all rollout advantages across all steps
+5. Perform **global normalization**
+6. Compute **per-step average advantage**
+7. Assign that value to all tokens in that step
+
+---
+
+### Key Insight
+
+Instead of asking:
+
+> “Was the final answer correct?”
+
+We ask:
+
+> “Which reasoning step improved the outcome?”
+
+---
+
+## Key Results
+
+**Puzzle Baron Logic Grid Puzzles — Qwen2.5-3B-Instruct**
 
 | Method | Perfect Solve Rate | Cell Accuracy |
-|---|---|---|
+|---|---:|---:|
 | SFT | 0.00% | 14.2% |
 | GRPO ORM | 1.49% | 29.1% |
 | R++ ORM | 1.78% | 30.1% |
@@ -32,83 +141,112 @@ evaluated in the thesis, including our proposed **Localized GRPO** algorithm.
 
 ## Repository Structure
 
-```
+```text
 verl/trainer/ppo/
-  core_algos.py          ← ALL advantage estimators:
-                           - GAE (PPO)
-                           - GRPO
-                           - REINFORCE++
-                           - REINFORCE++ w/ Baseline
-                           - REINFORCE++ GDPO
-                           - VinePPO
-                           - Localized GRPO (VINEPPO_GRPO) ← our method
-                           - Hybrid GRPO
-  ray_trainer.py         ← Training loop with MC rollout generation
-                           for VinePPO and Localized GRPO
+core_algos.py          # All RL algorithms
+ray_trainer.py         # Training loop with rollout generation
 
 verl/trainer/config/algorithm/
-  vineppo_grpo.yaml      ← Localized GRPO config (our method)
-  vine_ppo.yaml          ← VinePPO config
-  hybrid_grpo.yaml       ← Hybrid GRPO config
-  reinforce_plusplus.yaml
-  reinforce_plusplus_gdpo.yaml
+vineppo_grpo.yaml      # Localized GRPO
+vine_ppo.yaml
+hybrid_grpo.yaml
+reinforce_plusplus.yaml
 
 verl/utils/reward_score/
-  puzzle_baron_rewarder_hybrid.py    ← Hybrid reward (correctness + format)
-  puzzle_baron_rewarder_pure_orm.py  ← ORM-only reward
-  gsm8k_rewarder.py                  ← GSM8K cross-domain reward
+puzzle_baron_rewarder_hybrid.py
+puzzle_baron_rewarder_pure_orm.py
+gsm8k_rewarder.py
+puzzle_verifier.py
 
-slurm_scripts/           ← SLURM job scripts for all experiments
-eval_scripts/            ← Evaluation for Puzzle Baron, ZebraLogic, GSM8K
-```
+verl/workers/reward_manager/
+prm_score_reward_manager.py
+prm_verbal_reward_manager.py
+verifier_reward_manager.py
 
----
-
-## Core Algorithm (Localized GRPO)
-
-```
-For each intermediate reasoning step s_t in main trajectory:
-  1. Run K MC rollouts from s_t → get raw scores v_t1, v_t2, ..., v_tK
-  2. KL subtract: A_tk = v_tk - β * KL_tk
-
-Collect ALL A_tk across ALL steps × ALL rollouts → global pool
-
-Global normalization:
-  mu    = mean(pool)
-  sigma = std(pool)
-  Â_tk  = (A_tk - mu) / sigma
-
-Per-step average and broadcast:
-  state_adv_t = mean(Â_t1, Â_t2, ..., Â_tK)  ← K rollouts of step t only
-  advantages[step_t_tokens] = state_adv_t       ← broadcast to all tokens of step t
-```
-
-See `verl/trainer/ppo/core_algos.py` → `compute_vineppo_grpo_advantage()`
+slurm_scripts/
+eval_scripts/
+analysis/
+data_prep/
+````
 
 ---
 
 ## Training
 
 ```bash
-# Set token (classic PAT with repo scope)
 export GITHUB_TOKEN="..."
 
-# Run Localized GRPO (our method)
-sbatch slurm_scripts/run_localized_grpo_fixed.sh
+# Localized GRPO (our method)
+sbatch slurm_scripts/run_vineppo_grpo_Qwen2-5-3B-Instruct.sh
 
-# Run VinePPO baseline
+# VinePPO baseline
 sbatch slurm_scripts/run_vineppo_Qwen2-5-3B-Instruct.sh
 
-# Run REINFORCE++ w/ Baseline
-sbatch slurm_scripts/run_reinforce_plusplus_baseline_fixed_final.sh
+# REINFORCE++
+sbatch slurm_scripts/run_rein++_Qwen2-5-3B-Instruct.sh
 ```
 
 ---
 
 ## Base Model & Infrastructure
 
-- **Base model**: Qwen2.5-3B-Instruct
-- **SFT checkpoint**: `global_step_4000`
-- **Training framework**: VERL + vLLM + Ray
-- **Cluster**: ASU HPC (A100 80GB GPUs)
-- **Datasets**: Puzzle Baron (train/val), ZebraLogic (transfer), GSM8K (cross-domain)
+* **Model:** Qwen2.5-3B-Instruct
+* **Framework:** VERL + vLLM + Ray
+* **Cluster:** ASU HPC (A100 GPUs)
+* **Datasets:**
+
+  * Puzzle Baron (primary)
+  * ZebraLogic (transfer)
+  * GSM8K (cross-domain)
+
+---
+
+## Figures Directory
+
+Place images here:
+
+```text
+assets/figures/
+  puzzle_example.png
+  architecture_comparison.png
+  localized_grpo_pipeline.png
+  results_plot.png
+```
+
+---
+
+## Summary
+
+Localized GRPO introduces **step-wise credit assignment** for long reasoning chains by combining:
+
+* intermediate state rollouts
+* global normalization
+* token-level propagation
+
+This leads to significantly improved performance on structured reasoning tasks.
+
+---
+
+```
+
+---
+
+## 🔥 What you should do next (important)
+
+Create these 3 images (this will **massively boost your repo quality**):
+
+1. **architecture_comparison.png**
+   - PPO vs GRPO vs VinePPO vs Localized GRPO flow
+
+2. **localized_grpo_pipeline.png**
+   - Step → rollouts → normalization → broadcast
+
+3. **puzzle_example.png**
+   - Simple logic grid diagram
+
+---
+
+If you want, I can:
+- design those diagrams for you (clean research-paper style)
+- or convert your LaTeX figures directly into GitHub-ready PNGs
+```
