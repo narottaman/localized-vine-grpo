@@ -1,252 +1,344 @@
+
 # Localized GRPO — Master's Thesis Implementation
 
-**Localized GRPO: State-Wise Group-Relative Optimization for Multi-Step LLM Long Reasoning Chains**
+## Localized GRPO: State-Wise Group-Relative Optimization for Multi-Step LLM Reasoning
 
-Narottaman Gangadaran  
+**Narottaman Gangadaran**  
 Arizona State University  
 Advisor: Prof. Chitta Baral  
 
 ---
 
-## Overview
+##  Abstract
 
-This repository contains the full implementation of reinforcement learning post-training methods for improving **long-chain reasoning in Large Language Models (LLMs)**.
+Large Language Models (LLMs) struggle with **long-chain structured reasoning** due to poor credit assignment. Traditional reinforcement learning approaches provide **sparse or sequence-level feedback**, making it difficult for models to identify which reasoning steps contribute to success.
 
-We introduce **Localized GRPO**, a critic-free method that performs **step-wise credit assignment** using Monte Carlo rollouts from intermediate reasoning states.
+We propose **Localized GRPO**, a critic-free RL algorithm that performs:
 
----
+- **State-wise rollout evaluation**
+- **Global advantage normalization**
+- **Step-level credit propagation**
 
-## Problem Statement: Structured Reasoning with Puzzle Baron
-
-We evaluate models on **Puzzle Baron logic grid puzzles**, which require:
-
-- Multi-step logical deduction
-- Constraint propagation across entities
-- Consistent reasoning across multiple steps
-
-### Example Puzzle Structure
-
-Each puzzle consists of:
-- Entities (people, objects, attributes)
-- Clues (constraints)
-- A grid that must be filled consistently
-
-### Why This Is Hard
-
-- Requires **long reasoning chains**
-- Early mistakes propagate forward
-- Final reward alone does not explain *where reasoning failed*
+This leads to significantly improved reasoning performance on structured tasks such as **Puzzle Baron logic grids**, **ZebraLogic**, and **GSM8K**.
 
 ---
 
-### Example Puzzle Visualization
+##  Problem: Long-Chain Reasoning
 
-![Puzzle Baron Example](assets/figures/puzzle_example.png)
+Logic grid puzzles require:
 
----
+- Multi-step deduction
+- Constraint propagation
+- Global consistency
 
-## Why Credit Assignment Matters
+### Example Puzzle
 
-In long reasoning tasks:
-
-- The **final answer is sparse feedback**
-- Many intermediate steps influence correctness
-- Standard RL signals cannot identify:
-  - which step helped
-  - which step hurt
-
-This leads to:
-- high variance learning
-- unstable training
-- poor reasoning generalization
+![Puzzle Example](assets/puzzle_background_clues.png)
 
 ---
 
-## Architecture Comparison
+### Step-by-Step Reasoning Chain
 
-### Training Paradigms Overview
-
-![Architecture Comparison](assets/figures/architecture_comparison.png)
+![Reasoning](assets/puzzlebaron_chain.png)
 
 ---
 
-### Method Comparison
+### Final Answer
 
-| Method | Credit Assignment | Strength | Limitation |
-|---|---|---|---|
-| **PPO** | Token-level via critic | Stable optimization | Critic becomes inaccurate for long chains |
-| **GRPO** | Sequence-level relative reward | No critic needed | No step-level feedback |
-| **GDPO** | Structured normalization | Better stability | Still coarse credit assignment |
-| **REINFORCE++** | Sampled returns + normalization | Simple | High variance |
-| **VinePPO** | Rollouts from intermediate states | Partial step awareness | Limited normalization across steps |
-| **Localized GRPO (Ours)** | Step-wise + global normalization | Precise credit assignment | Higher compute cost |
+![Solution](assets/puzzle_solution.png)
 
 ---
 
-## Core Idea: Localized GRPO
+##  Core Challenge: Credit Assignment
 
-![Localized GRPO Pipeline](assets/figures/localized_grpo_pipeline.png)
+### Problem
+
+- Reward only given at the **end**
+- Early mistakes propagate
+- Model cannot identify:
+  - useful steps
+  - harmful steps
 
 ---
 
-### Algorithm Intuition
+### ORM Limitation
 
-For each reasoning step:
+![ORM](assets/orm.png)
 
-1. Sample **K rollouts from intermediate state**
+ ORM evaluates only the **final table**, ignoring reasoning steps.
+
+---
+
+##  Dataset Analysis
+
+### Puzzle Baron Distribution
+
+![Puzzle Distribution](assets/distribution_pb.png)
+
+---
+
+### ZebraLogic Distribution
+
+![Zebra Distribution](assets/distribution_zl.png)
+
+---
+
+##  Training Architectures
+
+---
+
+###  Supervised Fine-Tuning (SFT)
+
+![SFT](assets/sft_pipeline.png)
+
+- Token-level supervision
+- No reasoning evaluation
+
+---
+
+###  PPO (Actor-Critic)
+
+![PPO](assets/ppo_arch.png)
+
+- Uses critic for value estimation
+- Fails in long reasoning due to unstable value learning
+
+---
+
+###  GRPO (Group Relative Policy Optimization)
+
+![GRPO](assets/GRPO.png)
+
+- Removes critic
+- Sequence-level normalization
+- No step-level signal
+
+---
+
+###  GDPO
+
+![GDPO](assets/GDPO.png)
+
+- Structured normalization
+- Still coarse credit assignment
+
+---
+
+###  REINFORCE++
+
+![R++](assets/R++.png)
+
+- High variance
+- Weak temporal credit assignment
+
+---
+
+###  VinePPO
+
+![VinePPO](assets/vineppo.png)
+
+- Rollouts from intermediate states
+- Partial step-awareness
+
+---
+
+##  Localized GRPO (Our Contribution)
+
+---
+
+###  Full Architecture
+
+![Localized GRPO](assets/local_grpo_archi.png)
+
+---
+
+###  Advantage Computation
+
+![Advantage Flow](assets/Local_GRPO.png)
+
+---
+
+###  Normalization
+
+![Normalization](assets/adv_distribution.png)
+
+---
+
+###  Key Idea
+
+For each state \( s_t \):
+
+1. Sample **K rollouts**
 2. Compute reward for each rollout
-3. Apply KL penalty:
+3. Normalize across **ALL steps**
+4. Compute step-level advantage
+5. Broadcast to tokens
+
+---
+
+###  Key Properties
+
+- Correct steps are **never penalized**
+- High disagreement → **strong learning signal**
+- Identical rollouts → **zero gradient noise**
+
+---
+
+##  Reward Function
+
+---
+
+### Cell-Level Reward
+
+![Cell Reward](assets/orm.png)
+
+---
+
+### Hybrid Reward
+
+![Hybrid Reward](assets/hybrid_reward.png)
+
+\[
+R = w_c R_c + w_s R_s + w_{st} R_{st} + w_p R_p
+\]
+
+---
+
+##  Results
+
+---
+
+### Perfect Solve Rate
+
+![Perfect Solve](assets/perfect_acc_plot.png)
+
+---
+
+### Cell Accuracy
+
+![Cell Accuracy](assets/cell_acc_plot.png)
+
+---
+
+### Combined Metrics
+
+![Combined](assets/acc_plot.png)
+
+---
+
+### Training Curve
+
+![Training](assets/acc_trainstep.png)
+
+---
+
+### ZebraLogic Transfer
+
+![Zebra](assets/zl_acc.png)
+
+---
+
+### GSM8K Performance
+
+![GSM8K](assets/gsm8k_result.png)
+
+---
+
+##  Key Observations
+
+- Localized GRPO improves:
+  - **Perfect solve rate (15.2%)**
+  - **Cell accuracy (60.8%)**
+- Outperforms:
+  - PPO
+  - GRPO
+  - GDPO
+  - REINFORCE++
+  - VinePPO
+
+---
+
+##  Why Localized GRPO Works
+
+| Method | Credit Assignment | Limitation |
+|------|------------------|-----------|
+| PPO | Critic-based | Unstable |
+| GRPO | Sequence-level | No step info |
+| GDPO | Structured | Still coarse |
+| R++ | High variance | Weak signal |
+| VinePPO | Partial step | Not global |
+| **Localized GRPO** | Step-level + global | ✅ Best |
+
+---
+
+##  Experimental Setup
+
+- Model: **Qwen2.5-3B-Instruct**
+- Framework:
+  - VERL
+  - vLLM
+  - Ray
+- Hardware: A100 GPUs
+- Tasks:
+  - Puzzle Baron
+  - ZebraLogic
+  - GSM8K
+
+---
+
+##  Repository Structure
+
 ```
 
-A_tk = v_tk - β * KL_tk
-
-````
-4. Pool all rollout advantages across all steps
-5. Perform **global normalization**
-6. Compute **per-step average advantage**
-7. Assign that value to all tokens in that step
-
----
-
-### Key Insight
-
-Instead of asking:
-
-> “Was the final answer correct?”
-
-We ask:
-
-> “Which reasoning step improved the outcome?”
-
----
-
-## Key Results
-
-**Puzzle Baron Logic Grid Puzzles — Qwen2.5-3B-Instruct**
-
-| Method | Perfect Solve Rate | Cell Accuracy |
-|---|---:|---:|
-| SFT | 0.00% | 14.2% |
-| GRPO ORM | 1.49% | 29.1% |
-| R++ ORM | 1.78% | 30.1% |
-| R++ Hybrid | 2.21% | 47.9% |
-| GRPO Hybrid | 2.90% | 49.1% |
-| PPO ORM | 2.89% | 50.1% |
-| GDPO | 3.10% | 50.2% |
-| PPO Hybrid | 4.24% | 52.1% |
-| VinePPO | 11.10% | 56.1% |
-| **Localized GRPO (Ours)** | **15.20%** | **60.8%** |
-
----
-
-## Repository Structure
-
-```text
-verl/trainer/ppo/
-core_algos.py          # All RL algorithms
-ray_trainer.py         # Training loop with rollout generation
-
-verl/trainer/config/algorithm/
-vineppo_grpo.yaml      # Localized GRPO
-vine_ppo.yaml
-hybrid_grpo.yaml
-reinforce_plusplus.yaml
-
-verl/utils/reward_score/
-puzzle_baron_rewarder_hybrid.py
-puzzle_baron_rewarder_pure_orm.py
-gsm8k_rewarder.py
-puzzle_verifier.py
-
-verl/workers/reward_manager/
-prm_score_reward_manager.py
-prm_verbal_reward_manager.py
-verifier_reward_manager.py
+verl/
+trainer/ppo/
+trainer/config/
+utils/reward_score/
+workers/reward_manager/
 
 slurm_scripts/
 eval_scripts/
 analysis/
 data_prep/
+
 ````
 
 ---
 
-## Training
+##  Training
 
 ```bash
 export GITHUB_TOKEN="..."
 
-# Localized GRPO (our method)
+# Localized GRPO
 sbatch slurm_scripts/run_vineppo_grpo_Qwen2-5-3B-Instruct.sh
 
-# VinePPO baseline
+# Baselines
 sbatch slurm_scripts/run_vineppo_Qwen2-5-3B-Instruct.sh
-
-# REINFORCE++
 sbatch slurm_scripts/run_rein++_Qwen2-5-3B-Instruct.sh
-```
+````
 
 ---
 
-## Base Model & Infrastructure
+##  Summary
 
-* **Model:** Qwen2.5-3B-Instruct
-* **Framework:** VERL + vLLM + Ray
-* **Cluster:** ASU HPC (A100 GPUs)
-* **Datasets:**
+Localized GRPO introduces:
 
-  * Puzzle Baron (primary)
-  * ZebraLogic (transfer)
-  * GSM8K (cross-domain)
+* Step-wise rollout evaluation
+* Global normalization
+* Token-level advantage propagation
 
----
+### Result:
 
-## Figures Directory
-
-Place images here:
-
-```text
-assets/figures/
-  puzzle_example.png
-  architecture_comparison.png
-  localized_grpo_pipeline.png
-  results_plot.png
-```
+> Stronger learning signal → Better reasoning → Higher accuracy
 
 ---
 
-## Summary
+##  Citation
 
-Localized GRPO introduces **step-wise credit assignment** for long reasoning chains by combining:
+(To be added after thesis submission)
 
-* intermediate state rollouts
-* global normalization
-* token-level propagation
+````
 
-This leads to significantly improved performance on structured reasoning tasks.
 
----
 
-```
-
----
-
-## 🔥 What you should do next (important)
-
-Create these 3 images (this will **massively boost your repo quality**):
-
-1. **architecture_comparison.png**
-   - PPO vs GRPO vs VinePPO vs Localized GRPO flow
-
-2. **localized_grpo_pipeline.png**
-   - Step → rollouts → normalization → broadcast
-
-3. **puzzle_example.png**
-   - Simple logic grid diagram
-
----
-
-If you want, I can:
-- design those diagrams for you (clean research-paper style)
-- or convert your LaTeX figures directly into GitHub-ready PNGs
-```
