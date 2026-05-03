@@ -1,0 +1,31 @@
+include:
+  - recipe/pbaron/model/actor.yaml
+  - recipe/pbaron/model/critic.yaml
+
+algorithm:
+  adv_estimator: rlv
+  verifier_coef: 0.2
+  ppo_clip: 0.2
+  kl_beta: 0.02
+  entropy_coef: 0.01
+  gae_lambda: 0.95
+  gamma: 1.0
+
+data:
+  loader: verl_ext.pbaron.dataset:PBaronDataset
+  path: datasets/pbaron/puzzle_hint_table_train.json
+
+reward:
+  fn: verl_ext.pbaron.rewarder:PBaronReward
+
+engine:
+  fsdp: true
+  precision: bf16
+  global_batch_size: 32
+  micro_batch_size: 2
+  rollout_workers: 4
+
+logging:
+  log_interval: 20
+  save_steps: 2000
+  out_dir: outputs/pbaron_rlv

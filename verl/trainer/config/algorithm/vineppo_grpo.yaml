@@ -1,0 +1,21 @@
+# trainer/config/algorithm/vineppo_grpo.yaml
+adv_estimator: vineppo_grpo
+gamma: 1.0
+gae_lambda: 0.95
+normalize_advantages: true
+clip_ratio: 0.2
+norm_adv_by_std_in_grpo: true
+
+kl_ctrl:
+  type: adaptive
+  kl_coef: 0.01
+  target_kl: 0.02
+  horizon: 10000
+
+# KL is applied per-rollout inside compute_vineppo_grpo_advantage (vine_grpo_kl)
+# NOT as an episode-level penalty on the main trajectory reward
+use_kl_in_reward: false
+
+# kl_penalty field is irrelevant when use_kl_in_reward=false, but set for clarity
+# k3 is the unstable estimator — we use per-rollout KL directly instead
+kl_penalty: kl

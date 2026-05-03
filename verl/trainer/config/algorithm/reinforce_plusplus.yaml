@@ -1,0 +1,45 @@
+# REINFORCE++ Algorithm Configuration
+# Simple policy gradient with discounted returns
+# Paper: https://arxiv.org/abs/2501.03262
+
+# Core algorithm
+adv_estimator: reinforce_plus_plus
+
+# Discount factor for returns
+gamma: 0.99
+lam: 0.95  # Not used in REINFORCE++ but kept for compatibility
+
+# PPO clipping parameters
+clip_range: 0.2
+clip_range_value: 0.2
+
+# KL divergence control
+kl_ctrl:
+  type: fixed
+  kl_coef: 0.001  # Small KL penalty
+
+# Value function (not used in REINFORCE++)
+critic:
+  enable: false  # REINFORCE++ doesn't use critic
+  coef: 0.5
+
+# Policy loss type
+policy_loss_type: ppo_clip
+
+# Normalization
+norm_adv: false  # REINFORCE++ handles normalization internally via masked_whiten
+
+# Entropy bonus (helps exploration)
+entropy_coef: 0.01
+
+# REINFORCE++ doesn't need Monte Carlo rollouts
+use_mc_for_values: false
+mc_k: 0  # Not needed
+
+# Group baseline (for GRPO-style, not used here)
+norm_adv_by_std_in_grpo: true
+
+# Miscellaneous
+gradient_checkpointing: true
+offload_ref_model: true
+enable_save: true

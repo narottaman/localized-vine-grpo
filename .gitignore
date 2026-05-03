@@ -1,0 +1,42 @@
+# Model checkpoints (too large)
+checkpoints/
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+
+# Data files
+data/
+*.parquet
+*.arrow
+*.jsonl
+
+# Logs and outputs
+logs/
+output/
+outputs/
+wandb/
+*.out
+*.log
+nohup.out
+verl_logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+*.egg
+dist/
+build/
+
+# SLURM
+slurm-*.out
+
+# Secrets
+.env
+*.token
+
+# OS
+.DS_Store

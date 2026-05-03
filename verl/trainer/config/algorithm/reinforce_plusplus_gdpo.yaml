@@ -1,0 +1,28 @@
+# REINFORCE++ with GDPO-style decoupled reward normalization
+# Normalizes cell_accuracy, structure, and penalty rewards independently
+# within each prompt group before combining with weights.
+# Conditioned structure reward: structure bonus only given when cell_accuracy >= 0.1
+
+adv_estimator: reinforce_plus_plus_gdpo
+
+gamma: 1.0
+gae_lambda: 0.95
+normalize_advantages: true
+clip_ratio: 0.2
+
+kl_ctrl:
+  type: adaptive
+  kl_coef: 0.01
+  target_kl: 0.02
+  horizon: 10000
+
+use_kl_in_reward: true
+kl_penalty: k3
+
+# GDPO reward weights (must sum to 1.0)
+# Correctness (cell_accuracy) is prioritized — hard reward
+# Structure (format bonus) is secondary — easy reward, conditioned
+# Penalty is lowest weight
+gdpo_w_correctness: 0.70
+gdpo_w_structure: 0.20
+gdpo_w_penalty: 0.10

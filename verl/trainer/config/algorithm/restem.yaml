@@ -1,0 +1,50 @@
+# RestEM Algorithm Configuration
+# Outcome-based self-training without RL
+# Based on STaR: https://arxiv.org/abs/2308.08998
+
+# RestEM mode
+use_restem: true
+
+# Generation settings
+restem_n_samples: 16  # Generate 16 solutions per prompt (increase for harder problems)
+restem_temperature: 1.0  # High temperature for diversity
+restem_top_p: 0.95  # Nucleus sampling
+restem_top_k: 0  # No top-k filtering
+
+# Filtering settings  
+restem_reward_threshold: 0.9  # Consider correct if reward > 0.9 (tune based on your reward scale)
+restem_min_correct_ratio: 0.05  # Need at least 5% correct to do SFT (prevent training on nothing)
+
+# SFT settings
+restem_sft_epochs: 1  # SFT epochs per RestEM iteration (usually 1 is enough)
+restem_sft_lr: 1e-5  # Learning rate for SFT (smaller than RL typically)
+
+# Verbosity
+restem_verbose: true  # Print detailed stats
+
+# RL components (not used in RestEM, but kept for compatibility)
+adv_estimator: none  # No advantage estimation needed
+critic:
+  enable: false  # No critic in RestEM
+kl_ctrl:
+  type: fixed
+  kl_coef: 0.0  # No KL penalty
+
+# Policy loss (not used but required by config)
+policy_loss_type: ppo_clip
+clip_range: 0.2
+clip_range_value: 0.2
+
+# Other standard params
+gamma: 0.99
+lam: 0.95
+entropy_coef: 0.0  # No entropy bonus in pure SFT
+
+# Misc
+gradient_checkpointing: true
+offload_ref_model: true
+enable_save: true
+
+# Note: RestEM is fundamentally different from RL!
+# It's just: Generate → Filter correct → SFT → Repeat
+# No policy gradients, no advantage estimation, no PPO clipping

@@ -1,0 +1,29 @@
+# Hybrid-GRPO Algorithm Configuration
+# Combines GRPO group baseline with optional critic-based advantages
+
+adv_estimator: hybrid_grpo
+
+# Hybrid mixing parameter
+# alpha=0.0 → Pure GRPO (most stable)
+# alpha=0.3 → Recommended (mostly GRPO + some critic)
+# alpha=1.0 → Pure critic/GAE
+alpha: 0.3
+
+# Discount factor
+gamma: 1.0
+
+# GAE lambda (only used when critic values available)
+gae_lambda: 0.95
+
+# GRPO normalization
+norm_adv_by_std_in_grpo: true
+
+# KL control
+kl_ctrl:
+  type: adaptive
+  kl_coef: 0.01
+  target_kl: 0.02
+  horizon: 10000
+
+# Advantage normalization
+normalize_advantages: true

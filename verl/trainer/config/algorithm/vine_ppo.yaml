@@ -1,0 +1,13 @@
+# trainer/config/algorithm/vine_ppo.yaml
+adv_estimator: vine_ppo
+gamma: 1.0
+gae_lambda: 0.95
+normalize_advantages: true
+clip_ratio: 0.2
+
+kl_ctrl:
+  type: fixed
+  kl_coef: 0.001
+
+use_kl_in_reward: true
+kl_penalty: k3
